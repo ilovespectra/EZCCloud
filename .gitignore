@@ -1,0 +1,6 @@
+/.env
+/.env.example
+/.vite
+/CRASH_FIX_NOTES.md
+/GOOGLE_AUTH_FIX.md
+/SETUP_DRIVE_API.md
