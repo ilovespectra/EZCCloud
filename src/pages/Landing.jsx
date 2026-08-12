@@ -41,6 +41,32 @@ export default function Landing({ onSignIn }) {
         </nav>
       </header>
 
+      {/* Purpose Statement Section */}
+      <section style={{
+        background: 'rgba(0, 0, 0, 0.2)',
+        padding: '30px 40px',
+        textAlign: 'center',
+        borderBottom: '2px solid rgba(255, 255, 255, 0.1)'
+      }}>
+        <h2 style={{
+          color: 'white',
+          fontSize: '24px',
+          fontWeight: 'bold',
+          marginBottom: '12px'
+        }}>
+          About EZC-Cloud Transfer
+        </h2>
+        <p style={{
+          color: 'rgba(255, 255, 255, 0.9)',
+          fontSize: '16px',
+          maxWidth: '800px',
+          margin: '0 auto',
+          lineHeight: '1.6'
+        }}>
+          <strong>Purpose:</strong> EZC-Cloud Transfer is a secure desktop application designed to help users easily download, backup, and manage files from their Google Drive and Google Photos accounts to their local computer. Our application provides a simple, intuitive interface for bulk file operations with support for selective imports, automatic organization, and optional cleanup.
+        </p>
+      </section>
+
       {/* Main Content */}
       <main style={{ padding: '60px 40px', maxWidth: '1200px', margin: '0 auto' }}>
         {/* Hero Section */}
@@ -58,11 +84,11 @@ export default function Landing({ onSignIn }) {
             color: 'rgba(255, 255, 255, 0.9)',
             fontSize: '20px',
             marginBottom: '40px',
-            maxWidth: '600px',
+            maxWidth: '700px',
             margin: '0 auto 40px'
           }}>
-            EZC-Cloud Transfer makes it easy to import files from Google Drive to your local storage. 
-            Manage your files efficiently with our intuitive interface and powerful features.
+            EZC-Cloud Transfer makes it easy to download and import files from Google Drive and Google Photos to your local storage. 
+            Manage your files efficiently with our intuitive interface and powerful batch processing features.
           </p>
           <button
             onClick={onSignIn}
