@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import Landing from './pages/Landing';
 
 const defaultGoogleConfig = {
   clientId: '',
@@ -484,6 +485,11 @@ function App() {
       console.error('Empty trash error:', err);
     }
   };
+
+  // Show landing page if not authenticated
+  if (!token) {
+    return <Landing onSignIn={startAuth} />;
+  }
 
   return (
     <div className="app-shell">
