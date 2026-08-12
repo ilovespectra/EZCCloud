@@ -4,3 +4,30 @@
 /CRASH_FIX_NOTES.md
 /GOOGLE_AUTH_FIX.md
 /SETUP_DRIVE_API.md
+
+# Dependencies
+/node_modules
+/yarn.lock
+/package-lock.json
+
+# Build outputs
+/dist
+/build
+/out
+
+# Electron
+/release
+*.dmg
+*.exe
+*.zip
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
