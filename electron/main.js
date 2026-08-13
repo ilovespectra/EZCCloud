@@ -164,7 +164,7 @@ function loadSession() {
   try {
     const data = JSON.parse(fs.readFileSync(path.join(getUserDataDir(), 'session.json'), 'utf8'));
     const savedToken = data.token || null;
-    const hasPhotosScope = !!savedToken && typeof savedToken.scope === 'string' && savedToken.scope.includes('https://www.googleapis.com/auth/photoslibrary');
+    const hasPhotosScope = !!savedToken && typeof savedToken.scope === 'string' && savedToken.scope.includes('photoslibrary');
 
     if (!savedToken || !hasPhotosScope) {
       console.log('[Session] Ignoring stale or incomplete saved token for Photos access');
@@ -334,11 +334,7 @@ ipcMain.handle('start-auth', async () => {
       'https://www.googleapis.com/auth/userinfo.email',
       'https://www.googleapis.com/auth/userinfo.profile',
       'https://www.googleapis.com/auth/drive',
-      'https://www.googleapis.com/auth/drive.readonly',
-      'https://www.googleapis.com/auth/photoslibrary.readonly',
-      'https://www.googleapis.com/auth/photoslibrary',
-      'https://www.googleapis.com/auth/photoslibrary.appendonly',
-      'https://www.googleapis.com/auth/photoslibrary.sharing'
+      'https://www.googleapis.com/auth/photoslibrary.readonly'
     ];
     console.log('[IPC] Building auth URL with:');
     console.log('[IPC]   clientId:', clientId.substring(0, 20) + '...');
@@ -968,8 +964,8 @@ ipcMain.handle('list-photos', async (_event, payload) => {
     scope: token.scope ? token.scope.substring(0, 100) : 'N/A'
   });
   
-  // Check if token has required Google Photos scope
-  const requiredScopes = ['https://www.googleapis.com/auth/photoslibrary'];
+  // Check if token has required Google Photos scope (readonly is sufficient for viewing)
+  const requiredScopes = ['https://www.googleapis.com/auth/photoslibrary.readonly'];
   if (!hasRequiredScopes(token, requiredScopes)) {
     console.error('[ListPhotos] Token missing required Google Photos scope');
     return { 
@@ -1189,8 +1185,8 @@ ipcMain.handle('delete-photos', async (_event, payload) => {
   if (!hasRequiredScopes(token, requiredScopes)) {
     console.error('[DeletePhotos] Token missing required Google Photos scope');
     return { 
-      message: 'Your authentication needs to be updated to delete Google Photos. Please sign in again to grant the Google Photos permission.',
-      requiresReauth: true
+      message: 'Google Photos delete requires app verification. After verification is complete, sign in again to enable deletion.',
+      requiresReauth: false
     };
   }
   
