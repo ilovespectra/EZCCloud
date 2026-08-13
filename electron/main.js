@@ -304,10 +304,14 @@ ipcMain.handle('start-auth', async () => {
 
     const scopes = [
       'openid',
-      'email',
-      'profile',
+      'https://www.googleapis.com/auth/userinfo.email',
+      'https://www.googleapis.com/auth/userinfo.profile',
       'https://www.googleapis.com/auth/drive',
-      'https://www.googleapis.com/auth/photoslibrary'
+      'https://www.googleapis.com/auth/drive.readonly',
+      'https://www.googleapis.com/auth/photoslibrary.readonly',
+      'https://www.googleapis.com/auth/photoslibrary',
+      'https://www.googleapis.com/auth/photoslibrary.appendonly',
+      'https://www.googleapis.com/auth/photoslibrary.sharing'
     ];
     console.log('[IPC] Building auth URL with:');
     console.log('[IPC]   clientId:', clientId.substring(0, 20) + '...');
