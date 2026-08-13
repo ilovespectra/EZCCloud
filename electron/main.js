@@ -148,10 +148,31 @@ function saveSession() {
   fs.writeFileSync(path.join(dir, 'session.json'), JSON.stringify(data));
 }
 
+function clearSavedSession() {
+  const sessionPath = path.join(getUserDataDir(), 'session.json');
+  try {
+    if (fs.existsSync(sessionPath)) {
+      fs.unlinkSync(sessionPath);
+      console.log('[Session] Cleared saved session file');
+    }
+  } catch (error) {
+    console.warn('[Session] Failed to clear saved session file:', error.message);
+  }
+}
+
 function loadSession() {
   try {
     const data = JSON.parse(fs.readFileSync(path.join(getUserDataDir(), 'session.json'), 'utf8'));
-    cachedToken = data.token || null;
+    const savedToken = data.token || null;
+    const hasPhotosScope = !!savedToken && typeof savedToken.scope === 'string' && savedToken.scope.includes('https://www.googleapis.com/auth/photoslibrary');
+
+    if (!savedToken || !hasPhotosScope) {
+      console.log('[Session] Ignoring stale or incomplete saved token for Photos access');
+      cachedToken = null;
+      return {};
+    }
+
+    cachedToken = savedToken;
     cachedDestination = data.destination || '';
     cachedFiles = data.files || [];
     cachedGoogleConfig = mergeGoogleOAuthConfig(data.googleConfig || {}, getGoogleOAuthConfig());
@@ -283,11 +304,11 @@ ipcMain.handle('start-auth', async () => {
   try {
     console.log('[IPC] start-auth called');
     
-    // Clear any existing cached token to force fresh authentication with new scopes
-    console.log('[IPC] Clearing cached token for fresh auth...');
+    // Clear any existing cached token and saved session to force fresh authentication with new scopes
+    console.log('[IPC] Clearing cached token and saved session for fresh auth...');
     cachedToken = null;
     authClient = null;  // Force new OAuth client
-    // Note: We intentionally do NOT clear the session file here - it will be overwritten on successful auth
+    clearSavedSession();
     
     // Add a small delay to ensure Electron is fully initialized
     await new Promise(resolve => setTimeout(resolve, 100));
