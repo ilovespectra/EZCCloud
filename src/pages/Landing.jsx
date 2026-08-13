@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import '../styles.css';
 
-export default function Landing({ onSignIn, status, authInProgress = false }) {
+export default function Landing({ onSignIn, status, authInProgress = false, canSignIn = true }) {
   const [hoveredFeature, setHoveredFeature] = useState(null);
 
   const features = [
@@ -91,7 +91,7 @@ export default function Landing({ onSignIn, status, authInProgress = false }) {
             Manage your files efficiently with our intuitive interface and powerful batch processing features.
           </p>
           <button
-            disabled={authInProgress}
+            disabled={authInProgress || !canSignIn}
             onClick={(e) => {
               console.log('[Landing] Sign in button clicked', e);
               onSignIn();
@@ -104,23 +104,23 @@ export default function Landing({ onSignIn, status, authInProgress = false }) {
               borderRadius: '8px',
               fontSize: '18px',
               fontWeight: 'bold',
-              cursor: authInProgress ? 'not-allowed' : 'pointer',
-              opacity: authInProgress ? 0.8 : 1,
+              cursor: (authInProgress || !canSignIn) ? 'not-allowed' : 'pointer',
+              opacity: (authInProgress || !canSignIn) ? 0.8 : 1,
               transition: 'transform 0.2s',
               boxShadow: '0 4px 15px rgba(0, 0, 0, 0.2)'
             }}
             onMouseEnter={(e) => {
-              if (authInProgress) return;
+              if (authInProgress || !canSignIn) return;
               console.log('[Landing] Mouse enter');
               e.target.style.transform = 'translateY(-2px)';
             }}
             onMouseLeave={(e) => {
-              if (authInProgress) return;
+              if (authInProgress || !canSignIn) return;
               console.log('[Landing] Mouse leave');
               e.target.style.transform = 'translateY(0)';
             }}
           >
-            {authInProgress ? 'Opening Google Sign-In...' : 'Get Started - Sign In with Google'}
+            {authInProgress ? 'Opening Google Sign-In...' : (canSignIn ? 'Get Started - Sign In with Google' : 'Desktop App Required for Sign-In')}
           </button>
           <p style={{
             color: 'rgba(255, 255, 255, 0.92)',

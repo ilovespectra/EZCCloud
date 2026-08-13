@@ -31,6 +31,7 @@ const defaultState = {
 };
 
 function App() {
+  const hasElectronAPI = typeof window !== 'undefined' && !!window.electronAPI;
   const [token, setToken] = useState(defaultState.token);
   const [userEmail, setUserEmail] = useState(defaultState.userEmail);
   const [files, setFiles] = useState(defaultState.files);
@@ -134,7 +135,7 @@ function App() {
   useEffect(() => {
     const api = window.electronAPI;
     if (!api) {
-      setStatus('Electron bridge was not loaded. Please reopen the app from Electron.');
+      setStatus('Web mode detected. Open the desktop app to sign in and transfer files.');
       return;
     }
 
@@ -568,7 +569,7 @@ function App() {
 
   // Show landing page if not authenticated
   if (!token) {
-    return <Landing onSignIn={startAuth} status={status} authInProgress={authInProgress} />;
+    return <Landing onSignIn={startAuth} status={status} authInProgress={authInProgress} canSignIn={hasElectronAPI} />;
   }
 
   return (
