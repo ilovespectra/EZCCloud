@@ -503,87 +503,26 @@ ipcMain.handle('import-files', async (_event, payload) => {
   console.log(`[ImportFiles] Starting transfer of ${totalFiles} files to ${destination}`);
   console.log(`[ImportFiles] Total payload files (including folders): ${payload.files?.length || 0}`);
 
-  // Helper function to calculate MD5 hash of a file
-  function getFileHash(filePath) {
-    try {
-      const crypto = require('crypto');
-      const content = fs.readFileSync(filePath);
-      return crypto.createHash('md5').update(content).digest('hex');
-    } catch (err) {
-      console.error(`[ImportFiles] Error hashing file ${filePath}:`, err.message);
-      return null;
-    }
-  }
-
-  // First pass: Build a map of existing file hashes on disk
-  const existingHashes = {};
-  function scanDirectoryForHashes(dir) {
-    try {
-      const items = fs.readdirSync(dir);
-      for (const item of items) {
-        const itemPath = path.join(dir, item);
-        const stat = fs.statSync(itemPath);
-        if (stat.isDirectory()) {
-          scanDirectoryForHashes(itemPath); // Recursive scan
-        } else if (stat.isFile()) {
-          const hash = getFileHash(itemPath);
-          if (hash) {
-            if (!existingHashes[hash]) {
-              existingHashes[hash] = [];
-            }
-            existingHashes[hash].push({ name: item, path: itemPath });
-            console.log(`[ImportFiles] Existing file hash: ${hash.substring(0, 8)}... = ${item}`);
-          }
-        }
-      }
-    } catch (err) {
-      console.error(`[ImportFiles] Error scanning directory ${dir}:`, err.message);
-    }
-  }
-  
-  console.log('[ImportFiles] Scanning destination for existing files...');
-  scanDirectoryForHashes(destination);
-  console.log(`[ImportFiles] Found ${Object.keys(existingHashes).length} unique files on disk`);
-  console.log('[ImportFiles] Existing hashes sample:', Object.keys(existingHashes).slice(0, 5).map(h => h.substring(0, 8) + '...'));
-
-  // Second pass: Identify which files to download based on hash comparison
+  // Lightweight duplicate detection: only inspect the exact target path for each file.
+  // This avoids recursively hashing the entire destination tree (which can be very expensive).
   const filesToDownload = [];
   const filesToSkip = [];
   
   for (const file of (payload.files || [])) {
     if (file.mimeType === 'application/vnd.google-apps.folder') continue; // Skip folders
-    
-    // Google Workspace files don't have md5Checksum, so we'll need to download them to check
-    // For regular files, use the API's md5Checksum
-    const googleHash = file.md5Checksum;
-    
-    console.log(`[ImportFiles] Checking file: ${file.name}, hasHash: ${!!googleHash}, hash: ${googleHash ? googleHash.substring(0, 8) + '...' : 'N/A'}`);
-    
-    if (googleHash && existingHashes[googleHash]) {
-      // File with same hash already exists
-      const existingFile = existingHashes[googleHash][0];
-      console.log(`[ImportFiles] Duplicate detected (hash match): ${file.name} matches existing ${existingFile.name}`);
-      filesToSkip.push({ name: file.name, reason: `duplicate of ${existingFile.name}` });
-    } else if (!googleHash) {
-      // Google Workspace file (Docs, Sheets, etc) - can't verify hash without downloading
-      // For now, check by filename in the destination
-      let targetPath = destination;
-      if (file.parentPath) {
-        const parentFolder = payload.files.find(f => f.id === file.parentPath);
-        if (parentFolder && parentFolder.name) {
-          targetPath = path.join(destination, parentFolder.name);
-        }
+
+    let targetPath = destination;
+    if (file.parentPath) {
+      const parentFolder = (payload.files || []).find(f => f.id === file.parentPath);
+      if (parentFolder && parentFolder.name) {
+        targetPath = path.join(destination, parentFolder.name);
       }
-      const filePath = path.join(targetPath, file.name);
-      
-      if (fs.existsSync(filePath)) {
-        console.log(`[ImportFiles] Workspace file exists by name: ${file.name}`);
-        filesToSkip.push({ name: file.name, reason: 'file with same name exists (workspace file)' });
-      } else {
-        filesToDownload.push(file);
-      }
+    }
+
+    const filePath = path.join(targetPath, file.name);
+    if (fs.existsSync(filePath)) {
+      filesToSkip.push({ name: file.name, reason: 'file with same name exists at destination' });
     } else {
-      // Regular file with hash, and no duplicate found
       filesToDownload.push(file);
     }
   }

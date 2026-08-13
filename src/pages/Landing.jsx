@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import '../styles.css';
 
-export default function Landing({ onSignIn }) {
+export default function Landing({ onSignIn, status, authInProgress = false }) {
   const [hoveredFeature, setHoveredFeature] = useState(null);
 
   const features = [
@@ -91,7 +91,11 @@ export default function Landing({ onSignIn }) {
             Manage your files efficiently with our intuitive interface and powerful batch processing features.
           </p>
           <button
-            onClick={onSignIn}
+            disabled={authInProgress}
+            onClick={(e) => {
+              console.log('[Landing] Sign in button clicked', e);
+              onSignIn();
+            }}
             style={{
               padding: '16px 48px',
               background: 'white',
@@ -100,15 +104,32 @@ export default function Landing({ onSignIn }) {
               borderRadius: '8px',
               fontSize: '18px',
               fontWeight: 'bold',
-              cursor: 'pointer',
+              cursor: authInProgress ? 'not-allowed' : 'pointer',
+              opacity: authInProgress ? 0.8 : 1,
               transition: 'transform 0.2s',
               boxShadow: '0 4px 15px rgba(0, 0, 0, 0.2)'
             }}
-            onMouseEnter={(e) => e.target.style.transform = 'translateY(-2px)'}
-            onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}
+            onMouseEnter={(e) => {
+              if (authInProgress) return;
+              console.log('[Landing] Mouse enter');
+              e.target.style.transform = 'translateY(-2px)';
+            }}
+            onMouseLeave={(e) => {
+              if (authInProgress) return;
+              console.log('[Landing] Mouse leave');
+              e.target.style.transform = 'translateY(0)';
+            }}
           >
-            Get Started - Sign In with Google
+            {authInProgress ? 'Opening Google Sign-In...' : 'Get Started - Sign In with Google'}
           </button>
+          <p style={{
+            color: 'rgba(255, 255, 255, 0.92)',
+            marginTop: '16px',
+            fontSize: '14px',
+            minHeight: '22px'
+          }}>
+            {status || ''}
+          </p>
         </div>
 
         {/* Features Section */}

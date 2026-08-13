@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Landing from './pages/Landing';
 
 const defaultGoogleConfig = {
@@ -43,6 +43,7 @@ function App() {
   const [thumbnailSize, setThumbnailSize] = useState(defaultState.thumbnailSize);
   const [googleConfig, setGoogleConfig] = useState(defaultState.googleConfig);
   const [status, setStatus] = useState(defaultState.status);
+  const [authInProgress, setAuthInProgress] = useState(false);
   const [currentFolder, setCurrentFolder] = useState(defaultState.currentFolder);
   const [breadcrumb, setBreadcrumb] = useState(defaultState.breadcrumb);
   const [previewFile, setPreviewFile] = useState(defaultState.previewFile);
@@ -50,6 +51,85 @@ function App() {
   const [importProgress, setImportProgress] = useState(defaultState.importProgress);
   const [deleteProgress, setDeleteProgress] = useState(defaultState.deleteProgress);
   const [source, setSource] = useState(defaultState.source);
+  const [sourceCache, setSourceCache] = useState({
+    drive: { loaded: false, items: [] },
+    photos: { loaded: false, items: [] }
+  });
+  const sourceRef = useRef(source);
+  const sourceCacheRef = useRef(sourceCache);
+
+  useEffect(() => {
+    sourceRef.current = source;
+  }, [source]);
+
+  useEffect(() => {
+    sourceCacheRef.current = sourceCache;
+  }, [sourceCache]);
+
+  const resetSourceViewState = () => {
+    setCurrentFolder(null);
+    setBreadcrumb([]);
+    setTransferred(0);
+    setSelectedIds([]);
+  };
+
+  const loadFilesForSource = async (targetSource, tokenToUse, options = {}) => {
+    const { force = false } = options;
+    const api = window.electronAPI;
+    if (!api || !tokenToUse) return;
+
+    const cached = sourceCacheRef.current[targetSource];
+    if (!force && cached?.loaded) {
+      setFiles(cached.items || []);
+      resetSourceViewState();
+      setStatus(`Loaded ${cached.items?.length || 0} ${targetSource === 'photos' ? 'photos' : 'files'} from cache.`);
+      return;
+    }
+
+    if (targetSource === 'photos') {
+      setStatus('Loading Google Photos...');
+      const result = await api.listPhotos(tokenToUse);
+      if (result.requiresReauth) {
+        setStatus(`${result.message} Please click "Sign In" again.`);
+        setFiles([]);
+        setSourceCache(prev => ({
+          ...prev,
+          photos: { loaded: false, items: [] }
+        }));
+        return;
+      }
+      if (result.message && !result.photos) {
+        setStatus(result.message);
+        setFiles([]);
+        setSourceCache(prev => ({
+          ...prev,
+          photos: { loaded: false, items: [] }
+        }));
+        return;
+      }
+
+      const photos = result.photos || [];
+      setFiles(photos);
+      resetSourceViewState();
+      setSourceCache(prev => ({
+        ...prev,
+        photos: { loaded: true, items: photos }
+      }));
+      setStatus(`Loaded ${photos.length} photos from Google Photos.`);
+      return;
+    }
+
+    setStatus('Loading Google Drive files...');
+    const result = await api.listFiles(tokenToUse);
+    const driveFiles = result.files || [];
+    setFiles(driveFiles);
+    resetSourceViewState();
+    setSourceCache(prev => ({
+      ...prev,
+      drive: { loaded: true, items: driveFiles }
+    }));
+    setStatus(`Loaded ${driveFiles.length} files from Google Drive.`);
+  };
 
   useEffect(() => {
     const api = window.electronAPI;
@@ -76,40 +156,11 @@ function App() {
             console.log('[App] Could not decode email from token');
           }
         }
-        console.log('[App] Calling listFiles...');
-        if (source === 'photos') {
-          api.listPhotos(value).then((result) => {
-            console.log('[App] listPhotos result:', result);
-            if (result.requiresReauth) {
-              setStatus(`${result.message} Please click "Sign In" again.`);
-              setFiles([]);
-            } else if (result.message && !result.photos) {
-              setStatus(result.message);
-              setFiles([]);
-            } else {
-              setFiles(result.photos || []);
-              setCurrentFolder(null);
-              setBreadcrumb([]);
-              setTransferred(0);
-              setStatus(`Loaded ${result.photos?.length || 0} photos from Google Photos.`);
-            }
-          }).catch((err) => {
-            console.error('[App] Error loading photos:', err);
-            setStatus(`Error loading photos: ${err.message}`);
-          });
-        } else {
-          api.listFiles(value).then((result) => {
-            console.log('[App] listFiles result:', result);
-            setFiles(result.files || []);
-            setCurrentFolder(null);
-            setBreadcrumb([]);
-            setTransferred(0);
-            setStatus(`Loaded ${result.files?.length || 0} files from Google Drive.`);
-          }).catch((err) => {
-            console.error('[App] Error loading files:', err);
-            setStatus(`Error loading files: ${err.message}`);
-          });
-        }
+        console.log('[App] Calling source loader after token...');
+        loadFilesForSource(sourceRef.current, value).catch((err) => {
+          console.error('[App] Error loading source after token:', err);
+          setStatus(`Error loading files: ${err.message}`);
+        });
       }
     });
 
@@ -123,7 +174,12 @@ function App() {
         count: result.files?.length,
         sample: result.files?.slice(0, 5).map(f => ({ id: f.id, name: f.name, parentPath: f.parentPath, isFolder: f.mimeType === 'application/vnd.google-apps.folder' }))
       });
-      setFiles(result.files || []);
+      const nextFiles = result.files || [];
+      setFiles(nextFiles);
+      setSourceCache(prev => ({
+        ...prev,
+        drive: { loaded: true, items: nextFiles }
+      }));
     });
 
     const unlistenImportProgress = api.onImportProgress((progress) => {
@@ -146,7 +202,12 @@ function App() {
         console.log('[App] Restoring token from session');
         setToken(state.token);
         setDestination(state.destination || '');
-        setFiles(state.files || []);
+        const initialFiles = state.files || [];
+        setFiles(initialFiles);
+        setSourceCache(prev => ({
+          ...prev,
+          drive: { loaded: true, items: initialFiles }
+        }));
         
         // Extract email from token if available
         if (state.token.id_token) {
@@ -162,10 +223,10 @@ function App() {
         // Load files automatically if stayLoggedIn is true
         if (stayLoggedIn !== false) {
           console.log('[App] Auto-loading files with restored token');
-          api.listFiles(state.token).then((result) => {
-            console.log('[App] Auto-loaded files:', result);
-            setFiles(result.files || []);
-            setStatus(`Restored previous session. Loaded ${result.files?.length || 0} files.`);
+          const hasSessionFiles = initialFiles.length > 0;
+          loadFilesForSource('drive', state.token, { force: !hasSessionFiles }).then(() => {
+            console.log('[App] Auto-loaded drive files');
+            setStatus('Restored previous session.');
           }).catch((err) => {
             console.error('[App] Error auto-loading files:', err);
             setStatus('Restored session but files need to reload.');
@@ -310,21 +371,42 @@ function App() {
 
   const saveGoogleSettings = async () => {
     if (!window.electronAPI) {
-      setStatus('Electron bridge was not loaded.');
-      return;
+      throw new Error('Electron bridge was not loaded.');
     }
-    await window.electronAPI.saveGoogleConfig(googleConfig);
-    setStatus('Saved Google OAuth settings.');
+    try {
+      await window.electronAPI.saveGoogleConfig(googleConfig);
+    } catch (error) {
+      console.error('[App] Error saving Google config:', error);
+      throw error;
+    }
   };
 
   const startAuth = async () => {
-    if (!window.electronAPI) {
-      setStatus('Electron bridge was not loaded.');
+    console.log('[App] startAuth called');
+    if (authInProgress) {
       return;
     }
-    await saveGoogleSettings();
-    setStatus('Launching Google sign-in…');
-    await window.electronAPI.startAuth();
+
+    setAuthInProgress(true);
+    try {
+      console.log('[App] Checking electronAPI:', !!window.electronAPI);
+      if (!window.electronAPI) {
+        console.error('[App] electronAPI is not available');
+        setStatus('Electron bridge was not loaded.');
+        return;
+      }
+      console.log('[App] Saving Google settings...');
+      await saveGoogleSettings();
+      console.log('[App] Settings saved, starting auth...');
+      setStatus('Launching Google sign-in…');
+      const result = await window.electronAPI.startAuth();
+      console.log('[App] Auth started, result:', result);
+    } catch (error) {
+      console.error('[App] Error in startAuth:', error);
+      setStatus(`Sign-in error: ${error?.message || String(error)}`);
+    } finally {
+      setAuthInProgress(false);
+    }
   };
 
   const importSelected = async () => {
@@ -445,13 +527,7 @@ function App() {
       
       // Reload files list to reflect deletions
       if (token) {
-        if (source === 'photos') {
-          const listResult = await window.electronAPI.listPhotos(token);
-          setFiles(listResult.photos || []);
-        } else {
-          const listResult = await window.electronAPI.listFiles(token);
-          setFiles(listResult.files || []);
-        }
+        await loadFilesForSource(source, token, { force: true });
       }
     } catch (err) {
       setDeleteProgress(null);
@@ -467,6 +543,10 @@ function App() {
     setSelectedIds([]);
     setTransferred(0);
     setPreviewFile(null);
+    setSourceCache({
+      drive: { loaded: false, items: [] },
+      photos: { loaded: false, items: [] }
+    });
     setStatus('Ready to sign in.');
   };
 
@@ -488,7 +568,7 @@ function App() {
 
   // Show landing page if not authenticated
   if (!token) {
-    return <Landing onSignIn={startAuth} />;
+    return <Landing onSignIn={startAuth} status={status} authInProgress={authInProgress} />;
   }
 
   return (
@@ -513,7 +593,10 @@ function App() {
             </button>
           </div>
         ) : (
-          <button className="google-btn" onClick={startAuth}>
+          <button className="google-btn" onClick={(e) => {
+            console.log('[App] Header sign-in button clicked', e);
+            startAuth();
+          }}>
             <span className="google-mark" aria-hidden="true">G</span>
             <span>Sign in with Google</span>
           </button>
@@ -531,15 +614,10 @@ function App() {
                 value="drive" 
                 checked={source === 'drive'} 
                 onChange={(e) => {
-                  setSource(e.target.value);
+                  const nextSource = e.target.value;
+                  setSource(nextSource);
                   if (token) {
-                    setStatus('Loading Google Drive files...');
-                    window.electronAPI.listFiles(token).then((result) => {
-                      setFiles(result.files || []);
-                      setCurrentFolder(null);
-                      setBreadcrumb([]);
-                      setStatus(`Loaded ${result.files?.length || 0} files from Google Drive.`);
-                    }).catch((err) => {
+                    loadFilesForSource(nextSource, token).catch((err) => {
                       setStatus(`Error loading files: ${err.message}`);
                     });
                   }
@@ -554,15 +632,10 @@ function App() {
                 value="photos" 
                 checked={source === 'photos'} 
                 onChange={(e) => {
-                  setSource(e.target.value);
+                  const nextSource = e.target.value;
+                  setSource(nextSource);
                   if (token) {
-                    setStatus('Loading Google Photos...');
-                    window.electronAPI.listPhotos(token).then((result) => {
-                      setFiles(result.photos || []);
-                      setCurrentFolder(null);
-                      setBreadcrumb([]);
-                      setStatus(`Loaded ${result.photos?.length || 0} photos from Google Photos.`);
-                    }).catch((err) => {
+                    loadFilesForSource(nextSource, token).catch((err) => {
                       setStatus(`Error loading photos: ${err.message}`);
                     });
                   }

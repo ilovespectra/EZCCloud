@@ -1,6 +1,12 @@
 const { ipcRenderer, contextBridge } = require('electron');
 
 try {
+  const onIpc = (channel, callback) => {
+    const listener = (_event, value) => callback(value);
+    ipcRenderer.on(channel, listener);
+    return () => ipcRenderer.removeListener(channel, listener);
+  };
+
   contextBridge.exposeInMainWorld('electronAPI', {
     startAuth: () => ipcRenderer.invoke('start-auth'),
     getInitialState: () => ipcRenderer.invoke('get-initial-state'),
@@ -13,12 +19,12 @@ try {
     deleteFiles: (payload) => ipcRenderer.invoke('delete-files', payload),
     deletePhotos: (payload) => ipcRenderer.invoke('delete-photos', payload),
     emptyTrash: (payload) => ipcRenderer.invoke('empty-trash', payload),
-    onAuthUrl: (callback) => ipcRenderer.on('auth-url', (_event, value) => callback(value)),
-    onToken: (callback) => ipcRenderer.on('token', (_event, value) => callback(value)),
-    onStatus: (callback) => ipcRenderer.on('status', (_event, value) => callback(value)),
-    onFiles: (callback) => ipcRenderer.on('files', (_event, value) => callback(value)),
-    onImportProgress: (callback) => ipcRenderer.on('import-progress', (_event, value) => callback(value)),
-    onDeleteProgress: (callback) => ipcRenderer.on('delete-progress', (_event, value) => callback(value))
+    onAuthUrl: (callback) => onIpc('auth-url', callback),
+    onToken: (callback) => onIpc('token', callback),
+    onStatus: (callback) => onIpc('status', callback),
+    onFiles: (callback) => onIpc('files', callback),
+    onImportProgress: (callback) => onIpc('import-progress', callback),
+    onDeleteProgress: (callback) => onIpc('delete-progress', callback)
   });
   console.log('Preload: electronAPI exposed successfully');
 } catch (error) {
