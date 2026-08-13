@@ -326,19 +326,43 @@ function App() {
     return childFiles;
   };
 
+  // Get all descendant file IDs recursively for a given folder (excludes folders themselves)
+  const getAllDescendantFileIds = (folderId) => {
+    const descendants = [];
+    const queue = [folderId];
+    const visited = new Set();
+
+    while (queue.length > 0) {
+      const currentId = queue.shift();
+      if (visited.has(currentId)) continue;
+      visited.add(currentId);
+
+      const children = files.filter(f => f.parentPath === currentId);
+      for (const child of children) {
+        if (child.mimeType === 'application/vnd.google-apps.folder') {
+          queue.push(child.id);
+        } else {
+          descendants.push(child.id);
+        }
+      }
+    }
+
+    return descendants;
+  };
+
   const toggleSelectFolder = (folderId) => {
-    // When selecting a folder, also select all its children
+    // When selecting a folder, also select all its descendants (recursively)
     const folder = files.find(f => f.id === folderId);
     if (folder && folder.mimeType === 'application/vnd.google-apps.folder') {
-      const childIds = files.filter(f => f.parentPath === folder.id).map(f => f.id);
+      const descendantFileIds = getAllDescendantFileIds(folderId);
       
       if (selectedIds.includes(folderId)) {
-        // Deselect folder and all children
-        const idsToRemove = [folderId, ...childIds];
+        // Deselect folder and all descendants
+        const idsToRemove = [folderId, ...descendantFileIds];
         setSelectedIds(prev => prev.filter(id => !idsToRemove.includes(id)));
       } else {
-        // Select folder and all children
-        const idsToAdd = [folderId, ...childIds];
+        // Select folder and all descendants
+        const idsToAdd = [folderId, ...descendantFileIds];
         setSelectedIds(prev => [...new Set([...prev, ...idsToAdd])]);
       }
     } else {
@@ -354,10 +378,21 @@ function App() {
   const isDocument = (mimeType) => mimeType?.includes('document') || mimeType?.includes('text');
 
   const selectAll = () => {
-    // Select ALL files from the entire drive, not just the current folder view
-    const allIds = files.map(f => f.id);
-    setSelectedIds(allIds);
-    setStatus(`Selected all ${allIds.length} files from entire drive`);
+    let fileIds = [];
+    
+    if (currentFolder) {
+      // When in a folder, select all files (recursively) in that folder and all its subfolders
+      fileIds = getAllDescendantFileIds(currentFolder.id);
+      setStatus(`Selected all ${fileIds.length} files in "${currentFolder.name}" and subfolders`);
+    } else {
+      // At root, select all files (excluding empty folders)
+      fileIds = files
+        .filter(f => f.mimeType !== 'application/vnd.google-apps.folder')
+        .map(f => f.id);
+      setStatus(`Selected all ${fileIds.length} files from entire drive`);
+    }
+    
+    setSelectedIds(fileIds);
   };
 
   const deselectAll = () => {
