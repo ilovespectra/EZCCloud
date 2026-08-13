@@ -5,8 +5,7 @@ function buildGoogleAuthUrl(oauth, { clientId, redirectUri, scopes }) {
     response_type: 'code',
     access_type: 'offline',
     prompt: 'consent',
-    scope: scopes.join(' '),
-    include_granted_scopes: true
+    scope: scopes.join(' ')
   });
 }
 

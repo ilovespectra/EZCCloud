@@ -283,6 +283,12 @@ ipcMain.handle('start-auth', async () => {
   try {
     console.log('[IPC] start-auth called');
     
+    // Clear any existing cached token to force fresh authentication with new scopes
+    console.log('[IPC] Clearing cached token for fresh auth...');
+    cachedToken = null;
+    authClient = null;  // Force new OAuth client
+    // Note: We intentionally do NOT clear the session file here - it will be overwritten on successful auth
+    
     // Add a small delay to ensure Electron is fully initialized
     await new Promise(resolve => setTimeout(resolve, 100));
     
